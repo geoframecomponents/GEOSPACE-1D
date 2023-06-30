@@ -22,10 +22,10 @@ import java.util.*;
 import org.junit.Test;
 import org.geotools.coverage.grid.GridCoverage2D;
 import org.geotools.data.simple.SimpleFeatureCollection;
-import org.jgrasstools.gears.io.rasterreader.OmsRasterReader;
-import org.jgrasstools.gears.io.shapefile.OmsShapefileFeatureReader;
-import org.jgrasstools.gears.io.timedependent.OmsTimeSeriesIteratorReader;
-import org.jgrasstools.gears.io.timedependent.OmsTimeSeriesIteratorWriter;
+import org.hortonmachine.gears.io.rasterreader.OmsRasterReader;
+import org.hortonmachine.gears.io.shapefile.OmsShapefileFeatureReader;
+import org.hortonmachine.gears.io.timedependent.OmsTimeSeriesIteratorReader;
+import org.hortonmachine.gears.io.timedependent.OmsTimeSeriesIteratorWriter;
 //import org.jgrasstools.gears.libs.monitor.PrintStreamProgressMonitor;
 import it.geoframe.blogspot.brokergeo.solver.*;
 import it.geoframe.blogspot.brokergeo.data.*;
@@ -35,6 +35,7 @@ import it.geoframe.blogpsot.netcdf.monodimensionalproblemtimedependent.*;
 import it.geoframe.blogspot.geoet.inout.InputReaderMain;
 import it.geoframe.blogspot.geoet.inout.OutputWriterMain;
 import it.geoframe.blogspot.geoet.penmanmonteithfao.PenmanMonteithFAOTotalStressedSolverMain;
+import it.geoframe.blogspot.geoet.rootdensity.solver.RootDensitySolverMain;
 import it.geoframe.blogspot.geoet.stressfactor.solver.*;
 
 
@@ -49,19 +50,19 @@ public class TestGEOSPACE_PenmanMonteithFAO {
 	@Test
 	public void Test() throws Exception {
 		
-		String startDate= "2013-12-15 00:00";
-        String endDate	= "2014-01-15 01:00";
+		String startDate= "2015-01-01 00:00";
+        String endDate	= "2015-01-01 02:00";
         String fId = "ID";
         String Id = "1";
         String site = "Cavone/";
 		int timeStepMinutes = 60;
 		String lab = "PM_waterstress"; ////richards - potential - waterstress -  environmentalstress - totalstress - potential_evaporation
-		String lab2 = "_test";
+		String lab2 = "_testconsole";
 		
 		
      	String pathTopBC    ="data/"+site+Id+"/precip_1.csv";
 		String pathBottomBC ="data/"+site+Id+"/Cavone_0.csv";
-		String pathGrid     ="data/Grid_NetCDF/Grid_GEOSPACE_230222.nc";
+		String pathGrid     ="data/Grid_NetCDF/Grid_GEOSPACE_1406.nc";
 		String pathSaveDates="data/"+site+Id+"/Cavone_1.csv"; 
 		String pathOutput = "output/GEOSPACE/JavaTestGEOSPACE_"+lab+lab2+".nc";
 		String outputDescription = "\n"
@@ -80,8 +81,8 @@ public class TestGEOSPACE_PenmanMonteithFAO {
         //PrintStreamProgressMonitor pm = new PrintStreamProgressMonitor(System.out, System.out);
         OmsRasterReader DEMreader = new OmsRasterReader();
 		DEMreader.file = "data/"+site+Id+"/dem_1.tif";
-		DEMreader.fileNovalue = -9999.0;
-		DEMreader.geodataNovalue = Double.NaN;
+		//DEMreader.fileNovalue = -9999.0;
+		//DEMreader.geodataNovalue = Double.NaN;
 		DEMreader.process();
 		GridCoverage2D digitalElevationModel = DEMreader.outRaster;
 		
@@ -92,7 +93,7 @@ public class TestGEOSPACE_PenmanMonteithFAO {
         //String inPathToShortWaveRadiationDiffuse="data/"+site+Id+"/Cavone_ShortwaveDiffuse_1.csv";
         //String inPathToLWRad 					="data/"+site+Id+"/Cavone_LongDownwelling_1.csv";
         String inPathToNetRad 					="data/"+site+Id+"/Net_1.csv";
-        String inPathToSoilHeatFlux 			="data/"+site+Id+"/GHF_1.csv";
+        String inPathToSoilHeatFlux 			="data/"+site+Id+"/GHF_all_1.csv";
         String inPathToPressure 				="data/"+site+Id+"/Pres_1.csv";
         //String inPathToLai 						="data/"+site+Id+"/LAI_sin.csv";
         String inPathToCentroids 				="data/"+site+Id+"/centroids_ID_1.shp";
@@ -116,10 +117,10 @@ public class TestGEOSPACE_PenmanMonteithFAO {
         //String outPathToCanopy					="output/GEOSPACE/Canopy.csv";
         //String outPathToVPD						="output/GEOSPACE/VPD.csv";
 		
-		RichardsLysimeterSolver1DMain R1DSolver     		= new RichardsLysimeterSolver1DMain();
-		RichardsLysimeterBuffer1D buffer 		  			= new RichardsLysimeterBuffer1D();
-		WriteNetCDFRichardsLysimeter1DDouble writeNetCDF 	= new WriteNetCDFRichardsLysimeter1DDouble();
-		ReadNetCDFRichardsLysimeterGrid1D readNetCDF    	= new ReadNetCDFRichardsLysimeterGrid1D();	
+        RichardsRootSolver1DMain R1DSolver     		= new RichardsRootSolver1DMain();
+		GEOSPACEBuffer1D buffer 		  			= new GEOSPACEBuffer1D();
+		WriteNetCDFGEOSPACE1DDouble writeNetCDF 	= new WriteNetCDFGEOSPACE1DDouble();
+		ReadNetCDFGEOSPACEGrid1D readNetCDF    		= new ReadNetCDFGEOSPACEGrid1D();
 		
 		InputReaderMain Input 											= new InputReaderMain();
 		OutputWriterMain Output 										= new OutputWriterMain();
@@ -129,7 +130,7 @@ public class TestGEOSPACE_PenmanMonteithFAO {
 		//TotalEvapoTranspirationSolverMain TotalEvapoTranspiration 		= new TotalEvapoTranspirationSolverMain();
 		InputDataMain InputBroker										= new InputDataMain();
 		ETsBrokerOneFluxSolverMain ETsBrokerSolver 						= new ETsBrokerOneFluxSolverMain(); 
-		
+		RootDensitySolverMain RootDensitySolver							= new RootDensitySolverMain();
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 //////////////////// model's variables /////////////////////////////////////////////////////////////////////////////////////////////////
@@ -149,7 +150,7 @@ public class TestGEOSPACE_PenmanMonteithFAO {
 		R1DSolver.interfaceHydraulicConductivityModel = "max";
 		R1DSolver.delta = 0;
 		R1DSolver.tTimeStep = 3600;
-		R1DSolver.timeDelta = 1800;
+		R1DSolver.timeDelta = 3600;
 		R1DSolver.newtonTolerance = Math.pow(10,-9);
 		R1DSolver.nestedNewton =1;
 		R1DSolver.picardIteration = 1;
@@ -160,19 +161,19 @@ public class TestGEOSPACE_PenmanMonteithFAO {
 		writeNetCDF.swrcModel = "VG";
 		writeNetCDF.fileSizeMax = 10000;
 		
-		
-		JarvisStressFactor.etaR  = -0.7; // depth of the root
+		Input.rootDepth  = -0.25;
+		//JarvisStressFactor.etaR  = -0.5; // depth of the root
 		//JarvisStressFactor.etaE  = -0.5; //depth of the evaporation layer
 		JarvisStressFactor.stressFactorModel = "LinearStressFactor";
 		JarvisStressFactor.representativeStressFactorModel = "AverageMethod"; //SizeWightedMethod, AverageMethod
 		//InputBroker.representativeEsModel = "AverageWaterWeightedMethod";  	//SizeWaterWeightedMethod, AverageWaterWeightedMethod //SizeWightedMethod, AverageWeightedMethod
-		InputBroker.representativeTsModel = "AverageWeightedMethod"; //SizeWaterWeightedMethod, AverageWaterWeightedMethod, RootWaterWeightedMethod //SizeWightedMethod, AverageWeightedMethod, RootWeightedMethod
+		ETsBrokerSolver.representativeTsModel = "AverageWeightedMethod"; //SizeWaterWeightedMethod, AverageWaterWeightedMethod, RootWaterWeightedMethod //SizeWightedMethod, AverageWeightedMethod, RootWeightedMethod
        	
 		
 		Input.idCentroids="ID";
 		Input.centroidElevation="Elevation";
 		
-		PmFAO.canopyHeight = 0.12;
+		PmFAO.canopyHeight = 3.5;
         PmFAO.soilFluxParameterDay = 0.35;
         PmFAO.soilFluxParameterNight = 0.75;
 		//Prospero.canopyHeight = 3.5;
@@ -181,7 +182,7 @@ public class TestGEOSPACE_PenmanMonteithFAO {
 		JarvisStressFactor.useVDPStress		   = false;	
 		JarvisStressFactor.useWaterStress = true;
 		//Prospero.useEvaporationWaterStress = true;
-		JarvisStressFactor.defaultStress      = 1.0;
+		//JarvisStressFactor.defaultStress      = 1.0;
 						
 		JarvisStressFactor.alpha = 0.005;
 		JarvisStressFactor.thetaR = 0.9;
@@ -261,10 +262,10 @@ public class TestGEOSPACE_PenmanMonteithFAO {
 		writeNetCDF.fileName = pathOutput;
 		writeNetCDF.briefDescritpion = outputDescription;
 		writeNetCDF.pathGrid = pathGrid;
-		writeNetCDF.pathBottomBC = pathBottomBC; 
-		writeNetCDF.pathTopBC = pathTopBC; 
-		writeNetCDF.bottomBC = bottomBC;
-		writeNetCDF.topBC = topBC;
+		writeNetCDF.pathRichardsBottomBC = pathBottomBC; 
+		writeNetCDF.pathRichardsTopBC = pathTopBC; 
+		writeNetCDF.bottomRichardsBC = bottomBC;
+		writeNetCDF.topRichardsBC = topBC;
 		
 		writeNetCDF.writeFrequency = writeFrequency;
 		writeNetCDF.spatialCoordinate = readNetCDF.eta;
@@ -272,6 +273,7 @@ public class TestGEOSPACE_PenmanMonteithFAO {
 		writeNetCDF.controlVolume = readNetCDF.controlVolume;
 		writeNetCDF.psiIC = readNetCDF.psiIC;
 		writeNetCDF.temperature = readNetCDF.temperature;
+		writeNetCDF.rootIC = readNetCDF.rootIC;
 		
 		writeNetCDF.timeUnits = "Minutes since 01/01/1970 01:00:00 UTC";
 		writeNetCDF.timeZone = "UTC"; 
@@ -284,9 +286,10 @@ public class TestGEOSPACE_PenmanMonteithFAO {
 		InputBroker.deltaZ 			= readNetCDF.spaceDelta;
 		JarvisStressFactor.z      	= readNetCDF.z;
 		InputBroker.z      			= readNetCDF.z;
-		InputBroker.etaR   			= JarvisStressFactor.etaR;
+		//InputBroker.etaR   			= JarvisStressFactor.etaR;
 		//InputBroker.etaE   			= JarvisStressFactor.etaE;
-		InputBroker.rootIC          = readNetCDF.rootIC;
+		Input.z      			= readNetCDF.z;
+		Input.rootIC          = readNetCDF.rootIC;
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////		
 //////////////////////// START /////////////////////////////////////////////////////////////////////////////////////////////////////////
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -344,19 +347,16 @@ public class TestGEOSPACE_PenmanMonteithFAO {
 			
             R1DSolver.solve();
 
-			buffer.inputDate = R1DSolver.inCurrentDate;
-			buffer.doProcessBuffer = R1DSolver.doProcessBuffer;
-			buffer.inputVariable = R1DSolver.outputToBuffer;
-			JarvisStressFactor.theta = R1DSolver.thetasNew;
-			
-			buffer.solve();
-			
-			writeNetCDF.variables = buffer.myVariable;			
-			writeNetCDF.doProcess = topBCReader.doProcess;
-			
-			writeNetCDF.writeNetCDF();
+            JarvisStressFactor.theta = R1DSolver.thetasNew;
+            
 			
 			Input.process();
+			InputBroker.etaR = Input.defRootDepth;
+			
+			RootDensitySolver.solve();
+			
+			InputBroker.rootDensity = RootDensitySolver.defRootDensity;
+		
 			
 			JarvisStressFactor.solve();
             
@@ -387,6 +387,21 @@ public class TestGEOSPACE_PenmanMonteithFAO {
 			ETsBrokerSolver.solve();
 			
 			R1DSolver.stressedETs = ETsBrokerSolver.StressedETs;
+			
+			buffer.inputDate = R1DSolver.inCurrentDate;
+			buffer.doProcessBuffer = R1DSolver.doProcessBuffer;
+			buffer.inputVariableRichards = R1DSolver.outputToBuffer;
+			buffer.inputVariableBroker = ETsBrokerSolver.outputToBuffer;
+			buffer.inputVariableStressFactor = JarvisStressFactor.outputToBuffer;
+			
+			
+			
+			buffer.solve();
+			
+			writeNetCDF.variables = buffer.myVariable;			
+			writeNetCDF.doProcess = topBCReader.doProcess;
+			
+			writeNetCDF.writeNetCDF();
 			
             Output.process();
 			

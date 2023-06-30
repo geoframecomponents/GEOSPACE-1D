@@ -114,6 +114,41 @@ def show_stress(a,b,c,d):
         font=dict(size=14))
     
     fig.show()
+    
+    
+def show_stress2(a,b):
+    warnings.filterwarnings('ignore')
+    kl = pd.read_csv(a,skiprows=6,parse_dates=[1])
+    kl = kl.drop(['Format'],axis=1) 
+    kl.columns.values[0] = 'Date'
+    kl.columns.values[1] = 'Potential'  
+    kl.Potential[kl.Potential<0]=0
+        
+    kl2 = pd.read_csv(b,skiprows=6,parse_dates=[1])
+    kl2 = kl2.drop(['Format'],axis=1)
+    kl2.columns.values[0] = 'Date'
+    kl2.columns.values[1] = 'Water_Stress'
+    kl2.Water_Stress[kl2.Water_Stress<0]=0
+
+    fig = px.line()
+    fig.add_trace(go.Scatter(x=kl['Date'], y=kl['Potential'], mode='lines', name='Potential'))
+    fig.add_trace(go.Scatter(x=kl2['Date'], y=kl2['Water_Stress'], mode='lines', name='Water_Stress'))
+    
+
+    fig.update_xaxes(rangeslider_visible=True)
+    
+    fig.update_layout(
+        #title= a,
+        #xaxis_title="Date",
+        #yaxis_title= a,
+        font_family="Times New Roman",
+        font_color="Black",
+        title_font_family="Times New Roman",
+        title_font_color="Black",
+        legend_title="Active Stress",
+        font=dict(size=14))
+    
+    fig.show()
 
 
 
@@ -209,26 +244,26 @@ def compare_sim_obs(a,b):
     kl = pd.read_csv(a,skiprows=6,parse_dates=[1])
     kl = kl.drop(['Format'],axis=1)
     kl.columns.values[0] = 'Date'
-    kl.columns.values[1] = 'GEO-SPACE'
-    kl.LysGEO[kl.LysGEO<0]=0
+    kl.columns.values[1] = 'GEOSPACE'
+    kl.GEOSPACE[kl.GEOSPACE<0]=0
    
     
     kl2 = pd.read_csv(b,skiprows=6,parse_dates=[1])
     kl2 = kl2.drop(['Format'],axis=1)
     kl2.columns.values[0] = 'Date'
-    kl2.columns.values[1] = 'obs'
-    kl2.SpikeII_data[kl2.SpikeII_data<0]=0
+    kl2.columns.values[1] = 'SpikeII'
+    kl2.SpikeII[kl2.SpikeII<0]=0
     
     
     fig = px.line()
-    fig.add_trace(go.Scatter(x=kl['Date'], y=kl['GEO-SPACE'], mode='lines', name='GEO-SPACE'))
-    fig.add_trace(go.Scatter(x=kl['Date'], y=kl2['obs'], mode='lines', name='obs'))
+    fig.add_trace(go.Scatter(x=kl['Date'], y=kl['GEOSPACE'], mode='lines', name='GEOSPACE'))
+    fig.add_trace(go.Scatter(x=kl['Date'], y=kl2['SpikeII'], mode='lines', name='SpikeII'))
 
    #fig.update_xaxes(rangeslider_visible=True)
     
     
     fig.update_layout(
-        title='Compare GEO-SPACE and observation data',
+        title='Compare GEOSPACE and SpikeII data',
         #xaxis_title="Date"
         font_family="Times New Roman",
         font_color="Black",
@@ -236,7 +271,7 @@ def compare_sim_obs(a,b):
         title_font_color="Black",
         yaxis_title="$Evapotranspiration -[mm h^{-1}]$",
         #legend_title="Date",
-        font=dict(size=18))
+        font=dict(size=16))
     fig.show()
     
     

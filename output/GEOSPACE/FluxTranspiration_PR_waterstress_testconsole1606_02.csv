@@ -1,0 +1,11 @@
+@T,table
+Created,2023-06-21 17:47
+Author,HortonMachine library
+@H,timestamp,value_1
+ID,,1
+Type,Date,Double
+Format,yyyy-MM-dd HH:mm,
+,2015-01-01 00:00,8.194376113278501
+,2015-01-01 01:00,0.04020230098424959
+,2015-01-01 02:00,0.0
+
