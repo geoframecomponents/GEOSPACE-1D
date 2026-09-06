@@ -9,7 +9,6 @@ import java.util.LinkedHashMap;
 import java.util.Map;
 
 import org.geoframe.geoet.io.GeoetInputsHandler;
-import org.geoframe.geospace.io.GeospaceInputsHandler;
 import org.geoframe.whetgeo1d.io.Whetgeo1DInputsHandler;
 import org.hortonmachine.dbs.compat.ADb;
 import org.hortonmachine.dbs.compat.EDb;
@@ -217,13 +216,13 @@ public class BuildGeospaceGpkgFixtures {
 		}
 	}
 
-	/** Writes the real root-density profile into {@link GeospaceInputsHandler}'s {@code root_density_ic} table. */
+	/** Writes the real root-density profile into {@link GeoetInputsHandler}'s {@code root_density_ic} table. */
 	private static void writeRootDensityIc(ADb db, double[] rootDensityIC) throws Exception {
-		SqlName table = SqlName.m(GeospaceInputsHandler.TABLE_ROOT_DENSITY_IC);
-		db.createTable(table, GeospaceInputsHandler.COL_ID + " INTEGER PRIMARY KEY",
-				GeospaceInputsHandler.COL_ROOT_DENSITY_IC + " REAL");
-		String sql = "INSERT INTO " + table.fixedDoubleName + " (" + GeospaceInputsHandler.COL_ID + ", "
-				+ GeospaceInputsHandler.COL_ROOT_DENSITY_IC + ") VALUES (?, ?)";
+		SqlName table = SqlName.m(GeoetInputsHandler.TABLE_ROOT_DENSITY_IC);
+		db.createTable(table, GeoetInputsHandler.COL_ID + " INTEGER PRIMARY KEY",
+				GeoetInputsHandler.COL_ROOT_DENSITY_IC + " REAL");
+		String sql = "INSERT INTO " + table.fixedDoubleName + " (" + GeoetInputsHandler.COL_ID + ", "
+				+ GeoetInputsHandler.COL_ROOT_DENSITY_IC + ") VALUES (?, ?)";
 		db.execOnConnection(conn -> {
 			boolean autoCommit = conn.getAutoCommit();
 			conn.setAutoCommit(false);

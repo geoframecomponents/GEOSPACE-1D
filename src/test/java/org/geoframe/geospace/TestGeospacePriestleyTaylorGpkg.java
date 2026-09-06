@@ -27,16 +27,16 @@ import java.util.Map;
 import org.geoframe.brokergeo.core.fluxsplit.FluxSplitMethod;
 import org.geoframe.brokergeo.core.state.BGCurrentStepInput;
 import org.geoframe.brokergeo.core.state.BGProblemQuantities;
+import org.geoframe.brokergeo.io.BrokerGeoOutputsHandler;
 import org.geoframe.geoet.core.config.Parameters;
 import org.geoframe.geoet.core.state.ETCurrentStepInput;
 import org.geoframe.geoet.core.state.ETProblemQuantities;
 import org.geoframe.geoet.io.GeoetInputsHandler;
+import org.geoframe.geoet.io.GeoetOutputsHandler;
 import org.geoframe.geoet.io.InputPreprocessor;
 import org.geoframe.geoet.solvers.JarvisStressFactorSolverWithNetRadiation;
 import org.geoframe.geoet.solvers.PriestleyTaylorSolverWithStressFactor;
 import org.geoframe.geoet.solvers.RootDensitySolver;
-import org.geoframe.geospace.io.GeospaceInputsHandler;
-import org.geoframe.geospace.io.GeospaceOutputsHandler;
 import org.geoframe.brokergeo.solvers.ETsBrokerOneFluxSolverMain;
 import org.geoframe.whetgeo1d.core.boundaryconditions.IBoundaryCondition.RichardsBoundaryConditionType;
 import org.geoframe.whetgeo1d.io.Whetgeo1DInputsHandler;
@@ -46,6 +46,7 @@ import org.hortonmachine.dbs.compat.ADb;
 import org.hortonmachine.dbs.compat.EDb;
 import org.hortonmachine.gears.libs.monitor.LogProgressMonitor;
 import org.hortonmachine.gears.utils.time.ETimeUtilities;
+import org.hortonmachine.gears.utils.time.UtcTimeUtilities;
 
 /**
  * Full-stack GEOSPACE-1D coupling: WHETGEO-1D's root-water-uptake Richards
@@ -53,14 +54,16 @@ import org.hortonmachine.gears.utils.time.ETimeUtilities;
  * Priestley-Taylor solvers and BrokerGEO's one-flux broker.
  *
  * <p>
- * <b>TODO THINGS TO CHECK:</b>Coupling is lagged, exactly matching the old test's own structure:
+ * <b>TODO THINGS TO CHECK:</b>Coupling is lagged, exactly matching the old
+ * test's own structure:
  * each step, Richards solves using the {@code stressedETs} the broker
  * computed at the *end of the previous* step (zero on the very first step);
  * GEOET/Broker then run on the water content that step's Richards solve just
  * produced, and their output becomes the input for the *next* Richards call.
  * IS THIS CORRECT?
  *
- * @author Concetta D'Amato, Niccolo' Tubini, Michele Bottazzi and Riccardo Rigon
+ * @author Concetta D'Amato, Niccolo' Tubini, Michele Bottazzi and Riccardo
+ *         Rigon
  * @author Andrea Antonello
  */
 public class TestGeospacePriestleyTaylorGpkg extends GeospaceTestCase {
@@ -81,8 +84,6 @@ public class TestGeospacePriestleyTaylorGpkg extends GeospaceTestCase {
 			whetgeoIn.read();
 			var geoetIn = new GeoetInputsHandler(inDb);
 			geoetIn.read();
-			var geospaceIn = new GeospaceInputsHandler(inDb);
-			geospaceIn.read();
 
 			int KMAX = whetgeoIn.KMAX;
 			int KREAL = KMAX - 1; // real soil cells, excludes the pond pseudo-cell
@@ -135,7 +136,7 @@ public class TestGeospacePriestleyTaylorGpkg extends GeospaceTestCase {
 			var geoetVars = new ETProblemQuantities();
 			geoetVars.rootDepth = rootDepth;
 			geoetInput.z = richards.z;
-			geoetInput.rootDensityIC = geospaceIn.rootDensityIC;
+			geoetInput.rootDensityIC = geoetIn.rootDensityIC;
 			geoetInput.time = 3600;
 
 			InputPreprocessor inputPreprocessor = new InputPreprocessor();
@@ -143,7 +144,7 @@ public class TestGeospacePriestleyTaylorGpkg extends GeospaceTestCase {
 			inputPreprocessor.variables = geoetVars;
 			inputPreprocessor.input = geoetInput;
 			inputPreprocessor.z = richards.z;
-			inputPreprocessor.rootIC = geospaceIn.rootDensityIC;
+			inputPreprocessor.rootIC = geoetIn.rootDensityIC;
 			inputPreprocessor.rootDepth = rootDepth;
 			inputPreprocessor.tStartDate = startDate;
 			inputPreprocessor.temporalStep = 60;
@@ -207,8 +208,9 @@ public class TestGeospacePriestleyTaylorGpkg extends GeospaceTestCase {
 			ADb outDb = EDb.GEOPACKAGE.getDb();
 			outDb.open(outputPath);
 
-			var progressMonitor = new LogProgressMonitor("TestGeospacePriestleyTaylorGpkg");
-			try (whetgeoIn; geoetIn; geospaceIn; outDb;
+			try (whetgeoIn;
+					geoetIn;
+					outDb;
 					var topBCIterator = whetgeoIn.iterateTimeseries("timeseries_topBC", startDate, endDate, 500);
 					var bottomBCIterator = whetgeoIn.iterateTimeseries("timeseries_bottomBC", startDate, endDate, 500);
 					var airTempIterator = geoetIn.iterateTimeseries(GeoetInputsHandler.VAR_AIR_TEMPERATURE, startDate,
@@ -220,9 +222,8 @@ public class TestGeospacePriestleyTaylorGpkg extends GeospaceTestCase {
 					var pressureIterator = geoetIn.iterateTimeseries(GeoetInputsHandler.VAR_ATMOSPHERIC_PRESSURE,
 							startDate, endDate, 500);
 					var whetgeoOut = new Whetgeo1DOutputsHandler(outDb, 500);
-					var geospaceOut = new GeospaceOutputsHandler(outDb, 500)) {
-
-				progressMonitor.beginTask(" -> Running GEOSPACE-1D full-stack test", -1);
+					var brokerOut = new BrokerGeoOutputsHandler(outDb, 500);
+					var geoetOut = new GeoetOutputsHandler(outDb, 500)) {
 
 				whetgeoOut.eta = whetgeoIn.eta;
 				whetgeoOut.etaDual = whetgeoIn.etaDual;
@@ -238,14 +239,18 @@ public class TestGeospacePriestleyTaylorGpkg extends GeospaceTestCase {
 				whetgeoOut.topBCType = topBC.name();
 				whetgeoOut.bottomBCType = bottomBC.name();
 
-				geospaceOut.eta = Arrays.copyOf(whetgeoIn.eta, KREAL);
+				brokerOut.eta = Arrays.copyOf(whetgeoIn.eta, KREAL);
 
+				var pm = new LogProgressMonitor("TestGeospacePriestleyTaylorGpkg");
+				pm.beginTask(" -> Running GEOSPACE-1D full-stack test", -1);
+				int iteration = 0;
 				while (topBCIterator.next() && bottomBCIterator.next() && airTempIterator.next()
 						&& netRadIterator.next() && soilFluxIterator.next() && pressureIterator.next()) {
 
 					long timestamp = topBCIterator.timestamp();
 
-					// ---- Richards: solves using the broker's PREVIOUS-step stressedETs (lagged coupling) ----
+					// ---- Richards: solves using the broker's PREVIOUS-step stressedETs (lagged
+					// coupling) ----
 					richards.inTopBC = new HashMap<>(Map.of(richards.stationID, topBCIterator.values()));
 					richards.inBottomBC = new HashMap<>(Map.of(richards.stationID, bottomBCIterator.values()));
 					richards.inCurrentDate = ETimeUtilities.INSTANCE.TIME_FORMATTER_UTC.format(new Date(timestamp));
@@ -255,7 +260,8 @@ public class TestGeospacePriestleyTaylorGpkg extends GeospaceTestCase {
 
 					maxAbsWaterVolumeError = Math.max(maxAbsWaterVolumeError, Math.abs(richards.outErrorVolume));
 
-					// ---- GEOET + Broker: fed by THIS step's freshly computed theta, feeding the NEXT Richards call ----
+					// ---- GEOET + Broker: fed by THIS step's freshly computed theta, feeding the
+					// NEXT Richards call ----
 					inputPreprocessor.inAirTemperature = new HashMap<>(Map.of(0, airTempIterator.values()));
 					inputPreprocessor.inNetRadiation = new HashMap<>(Map.of(0, netRadIterator.values()));
 					inputPreprocessor.inSoilFlux = new HashMap<>(Map.of(0, soilFluxIterator.values()));
@@ -289,20 +295,30 @@ public class TestGeospacePriestleyTaylorGpkg extends GeospaceTestCase {
 						maxThetaBoundsViolation = Math.max(maxThetaBoundsViolation, boundsViolation);
 					}
 
-					// ---- write outputs: standard WHETGEO-1D tables + GEOSPACE's own uptake/ET tables ----
+					// ---- write outputs: standard WHETGEO-1D tables + BrokerGEO's/GEOET's own
+					// uptake/ET tables ----
 					whetgeoOut.timestamp = timestamp;
 					whetgeoOut.theta = richards.outWaterContent;
 					whetgeoOut.waterSuction = richards.outWaterSuctions;
 					whetgeoOut.darcyVelocity = richards.outDarcyVelocity;
 					whetgeoOut.errorVolume = richards.outErrorVolume;
+					whetgeoOut.topBC = richards.outTopBCValue;
+					whetgeoOut.bottomBC = richards.outBottomBCValue;
 					whetgeoOut.write();
 
-					geospaceOut.timestamp = timestamp;
-					geospaceOut.stressedETs = Arrays.copyOf(broker.stressedETs, KREAL);
-					geospaceOut.evapoTranspiration = pt.evapoTranspirationPT;
-					geospaceOut.write();
+					brokerOut.timestamp = timestamp;
+					brokerOut.stressedETs = Arrays.copyOf(broker.stressedETs, KREAL);
+					brokerOut.writeStep();
+
+					geoetOut.timestamp = timestamp;
+					geoetOut.evapoTranspiration = pt.evapoTranspirationPT;
+					geoetOut.write();
+
+					if (iteration++ % 100 == 0) {
+						pm.message(" -> processed timestamp " + UtcTimeUtilities.quickToString(timestamp));
+					}
 				}
-				progressMonitor.done();
+				pm.done();
 			}
 
 			assertTrue("water volume balance residual too large: " + maxAbsWaterVolumeError,
