@@ -17,9 +17,12 @@ import org.hortonmachine.dbs.utils.SqlName;
 import org.hortonmachine.gears.io.timeseries.OmsTimeSeriesReader;
 import org.hortonmachine.gears.io.vectorreader.OmsVectorReader;
 import org.hortonmachine.gears.libs.modules.HMRaster;
+import org.hortonmachine.gears.utils.crs.CrsUtilities;
 import org.geotools.api.feature.simple.SimpleFeature;
+import org.geotools.api.referencing.crs.CoordinateReferenceSystem;
 import org.geotools.data.simple.SimpleFeatureCollection;
 import org.geotools.feature.FeatureIterator;
+import org.geotools.referencing.crs.DefaultGeographicCRS;
 import org.locationtech.jts.geom.Coordinate;
 import org.locationtech.jts.geom.Geometry;
 import org.joda.time.DateTime;
@@ -42,6 +45,8 @@ public class BuildGeospaceGpkgFixtures {
 
 	public static void main(String[] args) throws Exception {
 		buildSpikeIIPriestleyTaylor();
+		buildCavonePenmanMonteithFAO();
+		buildCavoneProsperoPM();
 	}
 
 	/**
@@ -116,10 +121,153 @@ public class BuildGeospaceGpkgFixtures {
 		System.out.println("Wrote " + outPath);
 	}
 
+	/**
+	 * {@code CavonePenmanMonteithFAO.gpkg}: same grid, same real Cavone site data, date range and
+	 * parameters as the old {@code testGEOSPACE.TestGEOSPACE_PenmanMonteithFAO} (recovered from git
+	 * history at {@code bf64c5f^}, the commit before this project's mavenization deleted it - no
+	 * copy of it survived on disk).
+	 */
+	private static void buildCavonePenmanMonteithFAO() throws Exception {
+		String outPath = "src/test/resources/input/gpkg/CavonePenmanMonteithFAO.gpkg";
+		String netcdfGrid = "data/Grid_NetCDF/Grid_GEOSPACE_test.nc";
+		String siteDir = "data/Cavone/1/";
+
+		String startDate = "2015-01-01 00:00";
+		String endDate = "2015-02-01 02:00";
+		double rootDepth = -0.25;
+
+		File csvFolder = Files.createTempDirectory("geospace-fixture-").toFile();
+		double[] rootDensityIC = writeGridCsvs(netcdfGrid, csvFolder);
+		Files.copy(new File(siteDir, "precip_1.csv").toPath(),
+				new File(csvFolder, "timeseries_topBC.csv").toPath(), StandardCopyOption.REPLACE_EXISTING);
+		Files.copy(new File(siteDir, "Cavone_0.csv").toPath(), new File(csvFolder, "timeseries_bottomBC.csv").toPath(),
+				StandardCopyOption.REPLACE_EXISTING);
+
+		File out = new File(outPath);
+		if (out.exists()) {
+			out.delete();
+		}
+		try (ADb db = EDb.GEOPACKAGE.getDb()) {
+			db.open(outPath);
+			Whetgeo1DInputsHandler.createDbFromCsv(csvFolder.getAbsolutePath(), db);
+
+			Map<String, Object> parameters = new LinkedHashMap<>();
+			parameters.put(GeoetInputsHandler.PARAM_START_DATE, startDate);
+			parameters.put(GeoetInputsHandler.PARAM_END_DATE, endDate);
+			parameters.put(GeoetInputsHandler.PARAM_TIME_STEP_MINUTES, 60);
+			parameters.put(GeoetInputsHandler.PARAM_ROOTS_DEPTH, rootDepth);
+			parameters.put(GeoetInputsHandler.PARAM_ELEVATION,
+					readElevationAtCentroid(siteDir + "centroids_ID_1.shp", siteDir + "dem_1.tif"));
+			parameters.put(GeoetInputsHandler.PARAM_CANOPY_HEIGHT, 3.5);
+			parameters.put(GeoetInputsHandler.PARAM_SOIL_FLUX_PARAMETER_DAY, 0.35);
+			parameters.put(GeoetInputsHandler.PARAM_SOIL_FLUX_PARAMETER_NIGHT, 0.75);
+			parameters.put(GeoetInputsHandler.PARAM_USE_RADIATION_STRESS, 0);
+			parameters.put(GeoetInputsHandler.PARAM_USE_TEMPERATURE_STRESS, 0);
+			parameters.put(GeoetInputsHandler.PARAM_USE_VDP_STRESS, 0);
+			parameters.put(GeoetInputsHandler.PARAM_USE_WATER_STRESS, 1);
+			parameters.put(GeoetInputsHandler.PARAM_ALPHA, 0.005);
+			parameters.put(GeoetInputsHandler.PARAM_THETA, 0.9);
+			parameters.put(GeoetInputsHandler.PARAM_VPD0, 5.0);
+			parameters.put(GeoetInputsHandler.PARAM_TL, -5.0);
+			parameters.put(GeoetInputsHandler.PARAM_T0, 20.0);
+			parameters.put(GeoetInputsHandler.PARAM_TH, 45.0);
+
+			Map<String, String> timeseries = new LinkedHashMap<>();
+			timeseries.put(GeoetInputsHandler.VAR_AIR_TEMPERATURE, siteDir + "airT_1.csv");
+			timeseries.put(GeoetInputsHandler.VAR_WIND_VELOCITY, siteDir + "Wind_1.csv");
+			timeseries.put(GeoetInputsHandler.VAR_RELATIVE_HUMIDITY, siteDir + "RH_1.csv");
+			timeseries.put(GeoetInputsHandler.VAR_NET_RADIATION, siteDir + "Net_1.csv");
+			timeseries.put(GeoetInputsHandler.VAR_SOIL_FLUX, siteDir + "GHF_all_1.csv");
+			timeseries.put(GeoetInputsHandler.VAR_ATMOSPHERIC_PRESSURE, siteDir + "Pres_1.csv");
+
+			writeGeoetParameters(db, parameters);
+			writeGeoetTimeseries(db, timeseries);
+			writeRootDensityIc(db, rootDensityIC);
+		}
+		System.out.println("Wrote " + outPath);
+	}
+
+	/**
+	 * {@code CavoneProspero.gpkg}: same grid, same real Cavone site data, date range and parameters
+	 * as the old {@code testGEOSPACE.TestGEOSPACE_ProsperoPM} (recovered from git history at
+	 * {@code bf64c5f^}, same as {@link #buildCavonePenmanMonteithFAO()}).
+	 */
+	private static void buildCavoneProsperoPM() throws Exception {
+		String outPath = "src/test/resources/input/gpkg/CavoneProspero.gpkg";
+		String netcdfGrid = "data/Grid_NetCDF/Grid_GEOSPACE_test.nc";
+		String siteDir = "data/Cavone/1/";
+
+		String startDate = "2015-04-01 00:00";
+		String endDate = "2015-06-01 02:00";
+		double rootDepth = -2;
+
+		File csvFolder = Files.createTempDirectory("geospace-fixture-").toFile();
+		double[] rootDensityIC = writeGridCsvs(netcdfGrid, csvFolder);
+		Files.copy(new File(siteDir, "precip_1.csv").toPath(),
+				new File(csvFolder, "timeseries_topBC.csv").toPath(), StandardCopyOption.REPLACE_EXISTING);
+		Files.copy(new File(siteDir, "Cavone_0.csv").toPath(), new File(csvFolder, "timeseries_bottomBC.csv").toPath(),
+				StandardCopyOption.REPLACE_EXISTING);
+
+		File out = new File(outPath);
+		if (out.exists()) {
+			out.delete();
+		}
+		try (ADb db = EDb.GEOPACKAGE.getDb()) {
+			db.open(outPath);
+			Whetgeo1DInputsHandler.createDbFromCsv(csvFolder.getAbsolutePath(), db);
+
+			// GeoetInputsHandler has no dedicated constant for the Jarvis evaporation-layer
+			// depth (etaE) - a custom key, same "custom key" pattern already used for
+			// PriestleyTaylor's own two-alpha collision (see buildSpikeIIPriestleyTaylor()).
+			String paramEtaE = "jarvisEtaE";
+
+			Map<String, Object> parameters = new LinkedHashMap<>();
+			parameters.put(GeoetInputsHandler.PARAM_START_DATE, startDate);
+			parameters.put(GeoetInputsHandler.PARAM_END_DATE, endDate);
+			parameters.put(GeoetInputsHandler.PARAM_TIME_STEP_MINUTES, 60);
+			parameters.put(GeoetInputsHandler.PARAM_ROOTS_DEPTH, rootDepth);
+			parameters.put(GeoetInputsHandler.PARAM_ELEVATION,
+					readElevationAtCentroid(siteDir + "centroids_ID_1.shp", siteDir + "dem_1.tif"));
+			double[] lonLat = readLonLatAtCentroid(siteDir + "centroids_ID_1.shp", siteDir + "dem_1.tif");
+			parameters.put(GeoetInputsHandler.PARAM_LONGITUDE, lonLat[0]);
+			parameters.put(GeoetInputsHandler.PARAM_LATITUDE, lonLat[1]);
+			parameters.put(GeoetInputsHandler.PARAM_CANOPY_HEIGHT, 2.5);
+			parameters.put(GeoetInputsHandler.PARAM_TYPE_OF_CANOPY, "multilayer");
+			parameters.put(paramEtaE, -0.2);
+			parameters.put(GeoetInputsHandler.PARAM_USE_RADIATION_STRESS, 0);
+			parameters.put(GeoetInputsHandler.PARAM_USE_TEMPERATURE_STRESS, 0);
+			parameters.put(GeoetInputsHandler.PARAM_USE_VDP_STRESS, 0);
+			parameters.put(GeoetInputsHandler.PARAM_USE_WATER_STRESS, 1);
+			parameters.put(GeoetInputsHandler.PARAM_ALPHA, 0.005);
+			parameters.put(GeoetInputsHandler.PARAM_THETA, 0.9);
+			parameters.put(GeoetInputsHandler.PARAM_VPD0, 5.0);
+			parameters.put(GeoetInputsHandler.PARAM_TL, -5.0);
+			parameters.put(GeoetInputsHandler.PARAM_T0, 20.0);
+			parameters.put(GeoetInputsHandler.PARAM_TH, 45.0);
+
+			Map<String, String> timeseries = new LinkedHashMap<>();
+			timeseries.put(GeoetInputsHandler.VAR_AIR_TEMPERATURE, siteDir + "airT_1.csv");
+			timeseries.put(GeoetInputsHandler.VAR_WIND_VELOCITY, siteDir + "Wind_1.csv");
+			timeseries.put(GeoetInputsHandler.VAR_RELATIVE_HUMIDITY, siteDir + "RH_1.csv");
+			timeseries.put(GeoetInputsHandler.VAR_NET_RADIATION, siteDir + "Net_1.csv");
+			timeseries.put(GeoetInputsHandler.VAR_SOIL_FLUX, siteDir + "GHF_all_1.csv");
+			timeseries.put(GeoetInputsHandler.VAR_ATMOSPHERIC_PRESSURE, siteDir + "Pres_1.csv");
+			timeseries.put(GeoetInputsHandler.VAR_SHORT_WAVE_RADIATION_DIRECT, siteDir + "ShortwaveDirect_1.csv");
+			timeseries.put(GeoetInputsHandler.VAR_SHORT_WAVE_RADIATION_DIFFUSE, siteDir + "ShortwaveDiffuse_1.csv");
+			timeseries.put(GeoetInputsHandler.VAR_LONG_WAVE_RADIATION, siteDir + "LongDownwelling_1.csv");
+			timeseries.put(GeoetInputsHandler.VAR_LEAF_AREA_INDEX, siteDir + "LAI_4.csv");
+
+			writeGeoetParameters(db, parameters);
+			writeGeoetTimeseries(db, timeseries);
+			writeRootDensityIc(db, rootDensityIC);
+		}
+		System.out.println("Wrote " + outPath);
+	}
+
 	/** Reads the first feature's centroid from {@code shpPath} and samples {@code demPath} there. */
 	private static double readElevationAtCentroid(String shpPath, String demPath) throws Exception {
 		SimpleFeatureCollection centroids = OmsVectorReader.readVector(shpPath);
-		
+
 		Coordinate coordinate;
 		try (FeatureIterator<SimpleFeature> it = centroids.features()) {
 			SimpleFeature feature = it.next();
@@ -129,6 +277,33 @@ public class BuildGeospaceGpkgFixtures {
 		try (HMRaster dem = HMRaster.fromFile(demPath)) {
 			return dem.getValue(coordinate);
 		}
+	}
+
+	/**
+	 * Reads the first feature's centroid from {@code shpPath} and reprojects it to WGS84, the same
+	 * way {@code InputPreprocessor}'s own {@code inCentroids}/{@code inDem} path does internally
+	 * (source CRS taken from {@code demPath}, target {@code DefaultGeographicCRS.WGS84}) - needed
+	 * for {@code ProsperoSolver}'s own solar-position calculations, which the simpler ET models
+	 * (Priestley-Taylor, Penman-Monteith-FAO) never needed.
+	 *
+	 * @return {@code {longitude, latitude}}
+	 */
+	private static double[] readLonLatAtCentroid(String shpPath, String demPath) throws Exception {
+		SimpleFeatureCollection centroids = OmsVectorReader.readVector(shpPath);
+
+		Coordinate coordinate;
+		try (FeatureIterator<SimpleFeature> it = centroids.features()) {
+			SimpleFeature feature = it.next();
+			coordinate = ((Geometry) feature.getDefaultGeometry()).getCentroid().getCoordinate();
+		}
+
+		CoordinateReferenceSystem sourceCRS;
+		try (HMRaster dem = HMRaster.fromFile(demPath)) {
+			sourceCRS = dem.getCrs();
+		}
+		Coordinate[] coordinates = { coordinate };
+		CrsUtilities.reproject(sourceCRS, DefaultGeographicCRS.WGS84, coordinates);
+		return new double[] { coordinates[0].x, coordinates[0].y };
 	}
 
 	/**
